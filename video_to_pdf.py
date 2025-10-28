@@ -18,7 +18,7 @@ from PIL import Image
 class VideoPageExtractor:
     """Extract individual pages from a video of someone flipping through a book."""
     
-    def __init__(self, video_path, threshold=0.85, output_dir="pages", split_pages=False, filter_blank=False, blank_threshold=500):
+    def __init__(self, video_path, threshold=0.85, output_dir="pages", split_pages=False, filter_blank=False, blank_threshold=500, auto_grayscale=True, color_threshold=10):
         """
         Initialize the extractor.
         
@@ -29,6 +29,8 @@ class VideoPageExtractor:
             split_pages: Whether to split double-page spreads
             filter_blank: Whether to filter out mostly blank pages (e.g., loading spinners)
             blank_threshold: Variance threshold for blank detection (lower = more blank)
+            auto_grayscale: Automatically save colorless pages as grayscale
+            color_threshold: Threshold for color detection (lower = stricter)
         """
         self.video_path = video_path
         self.threshold = threshold
@@ -36,8 +38,12 @@ class VideoPageExtractor:
         self.split_pages = split_pages
         self.filter_blank = filter_blank
         self.blank_threshold = blank_threshold
+        self.auto_grayscale = auto_grayscale
+        self.color_threshold = color_threshold
         self.page_count = 0
         self.skipped_blank = 0
+        self.grayscale_count = 0
+        self.color_count = 0
         
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -89,6 +95,30 @@ class VideoPageExtractor:
         
         return laplacian_var < self.blank_threshold
     
+    def has_color(self, frame):
+        """
+        Detect if a frame has color or is grayscale.
+        
+        Args:
+            frame: Frame to check (numpy array in BGR format)
+            
+        Returns:
+            bool: True if the frame has color, False if grayscale
+        """
+        # Split into B, G, R channels
+        b, g, r = cv2.split(frame)
+        
+        # Calculate standard deviation between channels
+        # If all channels are similar, it's essentially grayscale
+        bg_diff = np.std(b.astype(float) - g.astype(float))
+        gr_diff = np.std(g.astype(float) - r.astype(float))
+        br_diff = np.std(b.astype(float) - r.astype(float))
+        
+        # Average difference between channels
+        avg_diff = (bg_diff + gr_diff + br_diff) / 3
+        
+        return avg_diff > self.color_threshold
+    
     def split_image(self, image_path, page_num):
         """
         Split a double-page spread into two separate images.
@@ -139,20 +169,39 @@ class VideoPageExtractor:
         
         self.page_count += 1
         
+        # Detect if page has color
+        is_color = self.has_color(frame) if self.auto_grayscale else True
+        
         if self.split_pages:
             # Save temporary full image
             temp_path = self.output_dir / f"page_{self.page_count:04d}_temp.png"
-            cv2.imwrite(str(temp_path), frame)
+            if self.auto_grayscale and not is_color:
+                # Convert to grayscale and save
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                cv2.imwrite(str(temp_path), gray)
+                self.grayscale_count += 1
+            else:
+                cv2.imwrite(str(temp_path), frame)
+                self.color_count += 1
             
             # Split and return paths
             paths = self.split_image(temp_path, self.page_count)
-            print(f"  Saved as {paths[0].name} and {paths[1].name}")
+            color_info = " (grayscale)" if not is_color else " (color)"
+            print(f"  Saved as {paths[0].name} and {paths[1].name}{color_info}")
             return paths
         else:
             # Save single image
             path = self.output_dir / f"page_{self.page_count:04d}.png"
-            cv2.imwrite(str(path), frame)
-            print(f"  Saved as {path.name}")
+            if self.auto_grayscale and not is_color:
+                # Convert to grayscale and save
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                cv2.imwrite(str(path), gray)
+                self.grayscale_count += 1
+                print(f"  Saved as {path.name} (grayscale)")
+            else:
+                cv2.imwrite(str(path), frame)
+                self.color_count += 1
+                print(f"  Saved as {path.name} (color)")
             return str(path)
     
     def extract_pages(self):
@@ -178,6 +227,9 @@ class VideoPageExtractor:
         print(f"Filter blank pages: {self.filter_blank}")
         if self.filter_blank:
             print(f"Blank threshold: {self.blank_threshold}")
+        print(f"Auto-grayscale: {self.auto_grayscale}")
+        if self.auto_grayscale:
+            print(f"Color threshold: {self.color_threshold}")
         print("\nExtracting pages...")
         
         prev_frame = None
@@ -228,6 +280,9 @@ class VideoPageExtractor:
         print(f"\n\nExtraction complete! Found {self.page_count} page change(s)")
         if self.filter_blank and self.skipped_blank > 0:
             print(f"Skipped {self.skipped_blank} blank/loading page(s)")
+        if self.auto_grayscale:
+            print(f"Grayscale pages: {self.grayscale_count}")
+            print(f"Color pages: {self.color_count}")
         print(f"Total images: {len(page_images)}")
         
         return sorted(page_images)
@@ -306,6 +361,19 @@ Examples:
     )
     
     parser.add_argument(
+        "--no-auto-grayscale",
+        action="store_true",
+        help="Disable automatic grayscale conversion for colorless pages"
+    )
+    
+    parser.add_argument(
+        "--color-threshold",
+        type=float,
+        default=10,
+        help="Threshold for color detection (default: 10, lower = stricter)"
+    )
+    
+    parser.add_argument(
         "--output-dir",
         default="pages",
         help="Directory for intermediate PNG files (default: pages)"
@@ -337,7 +405,9 @@ Examples:
             output_dir=args.output_dir,
             split_pages=args.split_pages,
             filter_blank=args.filter_blank,
-            blank_threshold=args.blank_threshold
+            blank_threshold=args.blank_threshold,
+            auto_grayscale=not args.no_auto_grayscale,
+            color_threshold=args.color_threshold
         )
         
         page_images = extractor.extract_pages()
