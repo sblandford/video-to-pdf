@@ -29,6 +29,18 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+3. (Optional) Install Tesseract OCR for searchable PDFs:
+```bash
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr
+
+# macOS
+brew install tesseract
+
+# Windows
+# Download from: https://github.com/UB-Mannheim/tesseract/wiki
+```
+
 **Note**: The `.vscode/settings.json` file is configured to automatically use the venv Python interpreter when you open this folder in Windsurf/VS Code. New terminals will automatically activate the venv.
 
 ### Manual Activation (if needed)
@@ -52,6 +64,7 @@ python video_to_pdf.py --input video.mp4 --output book.pdf
 - `--blank-threshold`: Variance threshold for blank detection (default: 500, lower = stricter)
 - `--no-auto-grayscale`: Disable automatic grayscale conversion for colorless pages (enabled by default)
 - `--color-threshold`: Threshold for color detection (default: 10, lower = stricter)
+- `--ocr`: Add searchable OCR text layer to PDF (requires tesseract-ocr to be installed)
 - `--output-dir`: Directory for intermediate PNG files (default: ./pages)
 - `--keep-images`: Keep PNG files after PDF creation
 
@@ -67,6 +80,9 @@ python video_to_pdf.py --input ebook.mp4 --output mybook.pdf --split-pages --thr
 # Filter out loading spinners and blank pages
 python video_to_pdf.py --input ebook.mp4 --output mybook.pdf --filter-blank
 
+# Create searchable PDF with OCR
+python video_to_pdf.py --input ebook.mp4 --output mybook.pdf --ocr
+
 # All features combined
 python video_to_pdf.py --input ebook.webm --output mybook.pdf --split-pages --filter-blank --keep-images
 
@@ -78,3 +94,11 @@ python video_to_pdf.py --input ebook.webm --output mybook.pdf --no-auto-grayscal
 
 ### Automatic Grayscale Optimization
 The tool automatically detects pages without color and saves them as grayscale PNGs, reducing file size by ~50% for those pages. This is enabled by default and works transparently.
+
+### OCR Text Layer (Optional)
+When using `--ocr`, the tool adds an invisible, searchable text layer to the PDF using Tesseract OCR. This allows you to:
+- Search for text within the PDF
+- Copy/paste text from the PDF
+- Use accessibility features
+
+Note: OCR processing will significantly increase processing time (a few seconds per page).

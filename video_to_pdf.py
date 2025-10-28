@@ -13,12 +13,19 @@ import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import img2pdf
 from PIL import Image
+try:
+    import pytesseract
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
 
 
 class VideoPageExtractor:
     """Extract individual pages from a video of someone flipping through a book."""
     
-    def __init__(self, video_path, threshold=0.85, output_dir="pages", split_pages=False, filter_blank=False, blank_threshold=500, auto_grayscale=True, color_threshold=10):
+    def __init__(self, video_path, threshold=0.85, output_dir="pages", split_pages=False, filter_blank=False, blank_threshold=500, auto_grayscale=True, color_threshold=10, enable_ocr=False):
         """
         Initialize the extractor.
         
@@ -31,6 +38,7 @@ class VideoPageExtractor:
             blank_threshold: Variance threshold for blank detection (lower = more blank)
             auto_grayscale: Automatically save colorless pages as grayscale
             color_threshold: Threshold for color detection (lower = stricter)
+            enable_ocr: Add searchable text layer using OCR
         """
         self.video_path = video_path
         self.threshold = threshold
@@ -40,6 +48,7 @@ class VideoPageExtractor:
         self.blank_threshold = blank_threshold
         self.auto_grayscale = auto_grayscale
         self.color_threshold = color_threshold
+        self.enable_ocr = enable_ocr
         self.page_count = 0
         self.skipped_blank = 0
         self.grayscale_count = 0
@@ -297,9 +306,18 @@ class VideoPageExtractor:
         """
         print(f"\nCreating PDF: {output_pdf}")
         
-        # Convert images to PDF
-        with open(output_pdf, "wb") as f:
-            f.write(img2pdf.convert(page_images))
+        if self.enable_ocr:
+            if not HAS_OCR:
+                print("Warning: OCR libraries not installed. Install with: pip install pytesseract reportlab")
+                print("Falling back to PDF without OCR...")
+                with open(output_pdf, "wb") as f:
+                    f.write(img2pdf.convert(page_images))
+            else:
+                self.create_pdf_with_ocr(page_images, output_pdf)
+        else:
+            # Convert images to PDF without OCR
+            with open(output_pdf, "wb") as f:
+                f.write(img2pdf.convert(page_images))
         
         print(f"PDF created successfully!")
         print(f"Output: {output_pdf}")
@@ -307,6 +325,64 @@ class VideoPageExtractor:
         # Get file size
         size_mb = os.path.getsize(output_pdf) / (1024 * 1024)
         print(f"File size: {size_mb:.2f} MB")
+    
+    def create_pdf_with_ocr(self, page_images, output_pdf):
+        """
+        Create a searchable PDF with OCR text layer.
+        
+        Args:
+            page_images: List of image paths
+            output_pdf: Output PDF path
+        """
+        from reportlab.lib.pagesizes import letter
+        
+        print("Adding OCR text layer (this may take a while)...")
+        
+        c = canvas.Canvas(output_pdf, pagesize=letter)
+        
+        for idx, img_path in enumerate(page_images, 1):
+            print(f"  OCR progress: {idx}/{len(page_images)}", end='\r')
+            
+            # Open image
+            img = Image.open(img_path)
+            img_width, img_height = img.size
+            
+            # Set page size to match image
+            c.setPageSize((img_width, img_height))
+            
+            # Draw image
+            c.drawImage(str(img_path), 0, 0, width=img_width, height=img_height)
+            
+            # Run OCR to get text and bounding boxes
+            try:
+                ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+                
+                # Add invisible text layer
+                for i, text in enumerate(ocr_data['text']):
+                    if text.strip():  # Only add non-empty text
+                        x = ocr_data['left'][i]
+                        y = img_height - ocr_data['top'][i] - ocr_data['height'][i]  # Flip Y coordinate
+                        width = ocr_data['width'][i]
+                        height = ocr_data['height'][i]
+                        
+                        # Set text as invisible (render mode 3)
+                        c.saveState()
+                        c.setFillColorRGB(0, 0, 0, alpha=0)  # Invisible
+                        
+                        # Calculate font size to fit the bounding box
+                        font_size = height * 0.8
+                        c.setFont("Helvetica", font_size)
+                        
+                        # Draw invisible text
+                        c.drawString(x, y, text)
+                        c.restoreState()
+            except Exception as e:
+                print(f"\nWarning: OCR failed for {img_path}: {e}")
+            
+            c.showPage()
+        
+        c.save()
+        print(f"\n  OCR complete!")
 
 
 def main():
@@ -385,6 +461,12 @@ Examples:
         help="Keep PNG files after PDF creation"
     )
     
+    parser.add_argument(
+        "--ocr",
+        action="store_true",
+        help="Add searchable OCR text layer to PDF (requires tesseract)"
+    )
+    
     args = parser.parse_args()
     
     # Validate input file
@@ -407,7 +489,8 @@ Examples:
             filter_blank=args.filter_blank,
             blank_threshold=args.blank_threshold,
             auto_grayscale=not args.no_auto_grayscale,
-            color_threshold=args.color_threshold
+            color_threshold=args.color_threshold,
+            enable_ocr=args.ocr
         )
         
         page_images = extractor.extract_pages()
