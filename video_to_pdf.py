@@ -307,13 +307,7 @@ class VideoPageExtractor:
         print(f"\nCreating PDF: {output_pdf}")
         
         if self.enable_ocr:
-            if not HAS_OCR:
-                print("Warning: OCR libraries not installed. Install with: pip install pytesseract reportlab")
-                print("Falling back to PDF without OCR...")
-                with open(output_pdf, "wb") as f:
-                    f.write(img2pdf.convert(page_images))
-            else:
-                self.create_pdf_with_ocr(page_images, output_pdf)
+            self.create_pdf_with_ocr(page_images, output_pdf)
         else:
             # Convert images to PDF without OCR
             with open(output_pdf, "wb") as f:
@@ -478,6 +472,26 @@ Examples:
     if not 0 <= args.threshold <= 1:
         print(f"Error: Threshold must be between 0 and 1", file=sys.stderr)
         sys.exit(1)
+    
+    # Validate OCR dependencies if OCR is requested
+    if args.ocr:
+        if not HAS_OCR:
+            print(f"Error: OCR Python libraries not installed. Install with:", file=sys.stderr)
+            print(f"  pip install pytesseract reportlab", file=sys.stderr)
+            print(f"\nAlso ensure tesseract-ocr is installed on your system:", file=sys.stderr)
+            print(f"  Ubuntu/Debian: sudo apt-get install tesseract-ocr", file=sys.stderr)
+            print(f"  macOS: brew install tesseract", file=sys.stderr)
+            sys.exit(1)
+        
+        # Check if tesseract binary is available
+        import shutil
+        if not shutil.which('tesseract'):
+            print(f"Error: tesseract-ocr is not installed or not in PATH", file=sys.stderr)
+            print(f"\nInstall tesseract-ocr on your system:", file=sys.stderr)
+            print(f"  Ubuntu/Debian: sudo apt-get install tesseract-ocr", file=sys.stderr)
+            print(f"  macOS: brew install tesseract", file=sys.stderr)
+            print(f"  Windows: https://github.com/UB-Mannheim/tesseract/wiki", file=sys.stderr)
+            sys.exit(1)
     
     try:
         # Extract pages
