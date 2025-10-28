@@ -63,7 +63,7 @@ python video_to_pdf.py --input video.mp4 --output book.pdf
 - `--filter-blank`: Filter out mostly blank pages (e.g., loading spinners)
 - `--blank-threshold`: Variance threshold for blank detection (default: 500, lower = stricter)
 - `--no-auto-grayscale`: Disable automatic grayscale conversion for colorless pages (enabled by default)
-- `--color-threshold`: Threshold for color detection (default: 10, lower = stricter)
+- `--color-threshold`: Threshold for color detection (default: 10). Lower values (3-5) detect subtle colors, higher values (15-20) only detect obvious color
 - `--ocr`: Add searchable OCR text layer to PDF (requires tesseract-ocr to be installed)
 - `--output-dir`: Directory for intermediate PNG files (default: ./pages)
 - `--keep-images`: Keep PNG files after PDF creation
@@ -88,12 +88,20 @@ python video_to_pdf.py --input ebook.webm --output mybook.pdf --split-pages --fi
 
 # Disable auto-grayscale (keep all pages as color)
 python video_to_pdf.py --input ebook.webm --output mybook.pdf --no-auto-grayscale
+
+# Detect subtle colors (for photos with muted tones)
+python video_to_pdf.py --input ebook.webm --output mybook.pdf --color-threshold 5
 ```
 
 ## Features
 
 ### Automatic Grayscale Optimization
 The tool automatically detects pages without color and saves them as grayscale PNGs, reducing file size by ~50% for those pages. This is enabled by default and works transparently.
+
+**Adjusting Color Detection:**
+- If photos are incorrectly saved as grayscale, **lower** `--color-threshold` (try 5 or 3)
+- If text pages are incorrectly saved as color, **raise** `--color-threshold` (try 15 or 20)
+- Default is 10, which works well for most ebooks
 
 ### OCR Text Layer (Optional)
 When using `--ocr`, the tool adds an invisible, searchable text layer to the PDF using Tesseract OCR. This allows you to:

@@ -37,7 +37,7 @@ class VideoPageExtractor:
             filter_blank: Whether to filter out mostly blank pages (e.g., loading spinners)
             blank_threshold: Variance threshold for blank detection (lower = more blank)
             auto_grayscale: Automatically save colorless pages as grayscale
-            color_threshold: Threshold for color detection (lower = stricter)
+            color_threshold: Threshold for color detection (lower = more sensitive, higher = stricter)
             enable_ocr: Add searchable text layer using OCR
         """
         self.video_path = video_path
@@ -107,12 +107,18 @@ class VideoPageExtractor:
     def has_color(self, frame):
         """
         Detect if a frame has color or is grayscale.
+        Calculates the difference between RGB channels - larger differences indicate color.
         
         Args:
             frame: Frame to check (numpy array in BGR format)
             
         Returns:
             bool: True if the frame has color, False if grayscale
+        
+        Note:
+            Lower threshold = more pages detected as color (more sensitive)
+            Higher threshold = fewer pages detected as color (stricter)
+            Default is 10. Try 3-5 for subtle colors, 15-20 to only catch obvious color.
         """
         # Split into B, G, R channels
         b, g, r = cv2.split(frame)
@@ -440,7 +446,7 @@ Examples:
         "--color-threshold",
         type=float,
         default=10,
-        help="Threshold for color detection (default: 10, lower = stricter)"
+        help="Threshold for color detection (default: 10). Lower values (3-5) detect subtle colors, higher values (15-20) only detect obvious color"
     )
     
     parser.add_argument(
