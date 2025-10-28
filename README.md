@@ -2,6 +2,18 @@
 
 Extract pages from screen-captured ebook videos and convert to PDF.
 
+## Supported Video Formats
+
+The tool supports most common video formats including:
+- **WebM** (VP8/VP9 codecs) - commonly used for screen recordings
+- **MP4** (H.264/H.265)
+- **AVI**
+- **MOV** (QuickTime)
+- **MKV** (Matroska)
+- **FLV** (Flash Video)
+
+Any format supported by OpenCV/ffmpeg will work.
+
 ## Setup
 
 1. Create and activate virtual environment:
