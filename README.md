@@ -2,6 +2,8 @@
 
 Extract pages from screen-captured ebook videos and convert to PDF.
 
+Created using Claude Sonnet 4.5 Thinking
+
 ## Supported Video Formats
 
 The tool supports most common video formats including:
